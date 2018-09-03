@@ -1,0 +1,18 @@
+{
+  "name": "hypercore-simple",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "hypercore": "^6.18.2",
+    "ipfs-api": "^24.0.1",
+    "print-flat-tree": "^2.2.0",
+    "random-access-memory": "^3.0.0"
+  }
+}
