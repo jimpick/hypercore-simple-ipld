@@ -27,6 +27,17 @@ for (let i = 0; i < 20; i++) {
       }
       console.log(`${prefix}${line}`)
     })
+    const crawl = roots.reduce(crawler, [])
+    console.log('Crawl', crawl.join(' '))
+  }
+
+  function crawler (acc, root) {
+    const children = tree.children(root)
+    if (children) {
+      acc = acc.concat(crawler([], children[0])) // Left
+      acc = acc.concat(crawler([], children[1])) // Right
+    }
+    return acc.concat(root)
   }
 }
 
