@@ -2,6 +2,7 @@ const hypercore = require('hypercore')
 const randomAccess = require('random-access-storage')
 const ram = require('random-access-memory')
 const argv = require('minimist')(process.argv.slice(2))
+const uint64be = require('uint64be')
 
 console.log('** Creating hypercore')
 const feed = hypercore(dumper)
@@ -57,8 +58,17 @@ function dumper (name) {
             !(name === 'tree' && offset === 0)
           )
         ) {
-          console.log('_write:', name, offset, '<=',
-            name === 'data' ? `"${data.toString()}"` : data)
+          if (name === 'tree') {
+            const hash = data.slice(0, 32)
+            const size = uint64be.decode(data, 32)
+            console.log('_write:', name, offset, '<=',
+              'Hash:', hash, 'Size:', size)
+          } else if (name === 'data') {
+            console.log('_write:', name, offset, '<=',
+              `"${data.toString()}"`)
+          } else {
+            console.log('_write:', name, offset, '<=', data)
+          }
         }
         ramFile.write(offset, data, err => {
           req.callback(err)
