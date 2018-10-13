@@ -59,7 +59,7 @@ function dumper (name) {
           )
         ) {
           if (name === 'tree') {
-            const hash = data.slice(0, 32)
+            const hash = data.slice(0, 32).toString('hex')
             const size = uint64be.decode(data, 32)
             console.log('_write:', name, offset, '<=',
               'Hash:', hash, 'Size:', size)
