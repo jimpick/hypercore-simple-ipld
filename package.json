@@ -12,6 +12,8 @@
   "dependencies": {
     "hypercore": "^6.18.2",
     "ipfs-api": "^24.0.1",
+    "minimist": "^1.2.0",
+    "multihashing": "^0.3.2",
     "print-flat-tree": "^2.2.0",
     "random-access-memory": "^3.0.0"
   }
