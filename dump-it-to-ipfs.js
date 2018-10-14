@@ -5,8 +5,14 @@ const raf = require('random-access-file')
 const argv = require('minimist')(process.argv.slice(2))
 const uint64be = require('uint64be')
 const ipfsAPI = require('ipfs-api')
+const multihash = require('multihashes')
+const CID = require('cids')
 
 const ipfs = new ipfsAPI('/ip4/127.0.0.1/tcp/5001')
+
+const nodeCids = new Map()
+
+const pendingTreeNodes = new Set()
 
 console.log('** Creating hypercore')
 const dir = 'db'
@@ -61,10 +67,28 @@ function dumper (dir) {
           )
         ) {
           if (name === 'tree') {
-            const hash = data.slice(0, 32).toString('hex')
+            const hash = data.slice(0, 32)
             const size = data.length > 32 ? uint64be.decode(data, 32) : null
             console.log('_write:', name, offset, '<=',
-              'Hash:', hash, 'Size:', size)
+              'Hash:', hash.toString('hex'), 'Size:', size)
+            if (offset >= 32) {
+              let treeData
+              const nodeIndex = (offset - 32) / 40
+              if (nodeIndex % 2 === 0) {
+                // Leaf
+                const mhash = multihash.encode(hash, 'blake2b-256')
+                const cid = new CID(1, 'raw', mhash)
+                treeData = {
+                  size: size,
+                  leaf: {'/': cid.toBaseEncodedString()}
+                }
+                writeTree(nodeIndex, treeData)
+              } else {
+                // Parent
+                pendingTreeNodes.add([nodeIndex, size, hash])
+              }
+              processPendingTreeNodes()
+            }
           } else if (name === 'data') {
             console.log('_write:', name, offset, '<=',
               `"${data.toString()}"`)
@@ -75,7 +99,10 @@ function dumper (dir) {
               data
             ])
             ipfs.dag.put(leaf, options, (err, cid) => {
-              if (err) return cb(err)
+              if (err) {
+                console.error('Error', err)
+                return
+              }
               console.log(`Wrote leaf at offset ${offset} to IPFS:`, leaf)
               console.log('CID:', cid.toBaseEncodedString())
               console.log('Multihash:', cid.multihash.toString('hex'))
@@ -97,4 +124,36 @@ function dumper (dir) {
     ra.label = 'proxy'
     return ra
   }
+}
+
+function processPendingTreeNodes () {
+  for (let pending of pendingTreeNodes) {
+    const [nodeIndex, size, hash] = pending
+    const leftCid = nodeCids.get(nodeIndex - 1)
+    const rightCid = nodeCids.get(nodeIndex + 1)
+    if (!leftCid || !rightCid) continue
+    const treeData = {
+      size,
+      hash,
+      left: {'/': leftCid},
+      right: {'/': rightCid}
+    }
+    writeTree(nodeIndex, treeData)
+    pendingTreeNodes.delete(pending)
+    break
+  }
+}
+
+function writeTree (nodeIndex, treeData) {
+  const options = {format: 'dag-cbor', hashAlg: 'sha3-512'}
+  ipfs.dag.put(treeData, options, (err, cid) => {
+    if (err) {
+      console.error('Error', err)
+      return
+    }
+    console.log(`Tree ${nodeIndex} CID:`,
+      cid.toBaseEncodedString())
+    nodeCids.set(nodeIndex, cid.toBaseEncodedString())
+    processPendingTreeNodes()
+  })
 }
