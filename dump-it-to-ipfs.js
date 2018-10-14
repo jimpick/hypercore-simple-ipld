@@ -4,7 +4,9 @@ const randomAccess = require('random-access-storage')
 const raf = require('random-access-file')
 const argv = require('minimist')(process.argv.slice(2))
 const uint64be = require('uint64be')
+const ipfsAPI = require('ipfs-api')
 
+const ipfs = new ipfsAPI('/ip4/127.0.0.1/tcp/5001')
 
 console.log('** Creating hypercore')
 const dir = 'db'
@@ -66,6 +68,18 @@ function dumper (dir) {
           } else if (name === 'data') {
             console.log('_write:', name, offset, '<=',
               `"${data.toString()}"`)
+            const options = { format: 'raw', hashAlg: 'blake2b-256' }
+            const leaf = Buffer.concat([
+              Buffer.from([0]),
+              uint64be.encode(data.length),
+              data
+            ])
+            ipfs.dag.put(leaf, options, (err, cid) => {
+              if (err) return cb(err)
+              console.log(`Wrote leaf at offset ${offset} to IPFS:`, leaf)
+              console.log('CID:', cid.toBaseEncodedString())
+              console.log('Multihash:', cid.multihash.toString('hex'))
+            })
           } else {
             console.log('_write:', name, offset, '<=', data)
           }
