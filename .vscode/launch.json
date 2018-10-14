@@ -9,13 +9,26 @@
       "type": "node",
       "request": "launch",
       "name": "dump",
-      "program": "${workspaceFolder}/dump-it-to-ipfs.js",
+      "program": "${workspaceFolder}/dump-to-ipfs.js",
+    },
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "load",
+      "program": "${workspaceFolder}/load-from-ipfs.js",
     },
     {
       "type": "node",
       "request": "launch",
       "name": "dump verbose",
-      "program": "${workspaceFolder}/dump-it-to-ipfs.js",
+      "program": "${workspaceFolder}/dump-to-ipfs.js",
+      "args": [ "-v"]
+    },
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "load verbose",
+      "program": "${workspaceFolder}/load-from-ipfs.js",
       "args": [ "-v"]
     }
   ]

@@ -114,11 +114,6 @@ function dumper (dir) {
         diskFile.write(offset, data, function (err) {
           req.callback(err)
         })
-      },
-      close: function (req) {
-        console.log('_close:', name, req)
-        process.exit(0)
-        req.callback(null)
       }
     })
     ra.label = 'proxy'
