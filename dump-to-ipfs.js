@@ -1,3 +1,4 @@
+const fs = require('fs')
 const hypercore = require('hypercore')
 const rimraf = require('rimraf')
 const randomAccess = require('random-access-storage')
@@ -182,7 +183,9 @@ function writeRoots (cb) {
   const options = {format: 'dag-cbor', hashAlg: 'sha3-512'}
   ipfs.dag.put(data, options, (err, cid) => {
     if (err) return cb(err)
-    console.log(`Roots CID:`, cid.toBaseEncodedString('base32'))
+    const cidStr = cid.toBaseEncodedString('base32')
+    console.log(`Roots CID:`, cidStr)
+    fs.writeFileSync('./db/latest', `${cidStr}\n`)
     cb()
   })
 }
