@@ -57,44 +57,46 @@ function loader (ipfs, latestCide, dir) {
     const ra = randomAccess({
       read: function (req) {
         const {offset, size} = req
-        diskFile.read(offset, size, function (err, buffer) {
-          if (
-            argv.v ||
-            (
-              name !== 'key' &&
-              name !== 'secret_key' &&
-              name !== 'bitfield' &&
-              name !== 'signatures'
-            )
-          ) {
-            if (name === 'tree') {
-              const hash = buffer.slice(0, 32)
-              const size = offset !== 0 ? uint64be.decode(buffer, 32) : null
-              let nodeIndex = null
-              if (offset !== 0) {
-                nodeIndex = (offset - 32) / 40
+        if (name === 'tree') {
+          let nodeIndex = null
+          if (offset !== 0) {
+            nodeIndex = (offset - 32) / 40
+          }
+          console.log('_read:', name, nodeIndex)
+          getIPLDPath(nodeIndex, getLength, (err, ipldPath) => {
+            if (err) bail(err)
+            console.log(`IPLD path for ${nodeIndex}:`, ipldPath)
+            ipfs.dag.get(latestCid, ipldPath, (err, data) => {
+              if (err) bail(err)
+              let {size, hash, leaf} = data.value
+              if (leaf) {
+                hash = leaf['/'].slice(-32)
               }
-              console.log('_read:', name, nodeIndex, offset, '<=',
+              console.log('_read (IPLD):', name, nodeIndex, '<=',
                 'Hash:', hash.toString('hex'), 'Size:', size)
-              getIPLDPath(nodeIndex, getLength, (err, ipldPath) => {
-                if (err) bail(err)
-                console.log(`IPLD path for ${nodeIndex}:`, ipldPath)
-                ipfs.dag.get(latestCid, ipldPath, (err, data) => {
-                  if (err) bail(err)
-                  let {size, hash, leaf} = data.value
-                  if (leaf) {
-                    hash = leaf['/'].slice(-32)
-                  }
-                  console.log('_read (IPLD):', name, nodeIndex, '<=',
-                    'Hash:', hash.toString('hex'), 'Size:', size)
-                })
-              })
-            } else {
+              const buffer = Buffer.concat([
+                hash,
+                uint64be.encode(size)
+              ])
+              req.callback(err, buffer)
+            })
+          })
+        } else {
+          diskFile.read(offset, size, function (err, buffer) {
+            if (
+              argv.v ||
+              (
+                name !== 'key' &&
+                name !== 'secret_key' &&
+                name !== 'bitfield' &&
+                name !== 'signatures'
+              )
+            ) {
               console.log('_read:', name, offset, size, '=>', buffer)
             }
-          }
-          req.callback(err, buffer)
-        })
+            req.callback(err, buffer)
+          })
+        }
       },
       write: function (req) {
         const {offset, data} = req
