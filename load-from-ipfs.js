@@ -43,11 +43,17 @@ function bail (err) {
 }
 
 function loader (ipfs, latestCide, dir) {
+  const treeSizes = new Map()
   const getLength = thunky(function (cb) {
-    ipfs.dag.get(latestCid, 'length', (err, data) => {
+    ipfs.dag.get(latestCid, (err, data) => {
       if (err) bail(err)
-      const length = data.value
+      const {length, sizes} = data.value
       console.log('Latest length:', length)
+      console.log('Latest root sizes:', sizes.join(' '))
+      const roots = tree.fullRoots(length * 2)
+      roots.forEach((root, index) => {
+        treeSizes.set(root, sizes[index])
+      })
       cb(null, length)
     })
   })
@@ -62,10 +68,10 @@ function loader (ipfs, latestCide, dir) {
           if (offset !== 0) {
             nodeIndex = (offset - 32) / 40
           }
-          console.log('_read:', name, nodeIndex)
+          // console.log('_read:', name, nodeIndex)
           getIPLDPath(nodeIndex, getLength, (err, ipldPath) => {
             if (err) bail(err)
-            console.log(`IPLD path for ${nodeIndex}:`, ipldPath)
+            // console.log(`IPLD path for ${nodeIndex}:`, ipldPath)
             ipfs.dag.get(latestCid, ipldPath, (err, data) => {
               if (err) bail(err)
               let {size, hash, leaf} = data.value
@@ -74,6 +80,7 @@ function loader (ipfs, latestCide, dir) {
               }
               console.log('_read (IPLD):', name, nodeIndex, '<=',
                 'Hash:', hash.toString('hex'), 'Size:', size)
+              treeSizes.set(nodeIndex, size)
               const buffer = Buffer.concat([
                 hash,
                 uint64be.encode(size)
@@ -93,8 +100,22 @@ function loader (ipfs, latestCide, dir) {
               )
             ) {
               console.log('_read:', name, offset, size, '=>', buffer)
+              req.callback(err, buffer)
+              if (name === 'data') {
+                getDataForOffset(offset, getLength, treeSizes, (err, data) => {
+                  if (err) bail(err)
+                  console.log('Jim _read2:', name, offset, size, '=>', data)
+                })
+                /*
+                getIPLDPath(nodeIndex, getLength, (err, ipldPath) => {
+                  if (err) bail(err)
+                  req.callback(err, buffer)
+                })
+                */
+              }
+            } else {
+              req.callback(err, buffer)
             }
-            req.callback(err, buffer)
           })
         }
       },
@@ -125,6 +146,7 @@ function loader (ipfs, latestCide, dir) {
 
 function getIPLDPath (nodeIndex, getLength, cb) {
   getLength((err, length) => {
+    if (err) return cb(err)
     const roots = tree.fullRoots(length * 2)
     const descendants = []
 
@@ -145,5 +167,34 @@ function getIPLDPath (nodeIndex, getLength, cb) {
         checkNodeIndex(tree.parent(nodeIndex))
       }
     }
+  })
+}
+
+function getDataForOffset (offset, getLength, treeSizes, cb) {
+  console.log('Jim getDataForOffset', offset)
+  getLength((err, length) => {
+    if (err) return cb(err)
+    if (offset === 0) {
+      const nodeIndex = 0
+      getIPLDPath(nodeIndex, getLength, (err, ipldPath) => {
+        ipfs.dag.get(latestCid, ipldPath, (err, data) => {
+          if (err) return cb(err)
+          const {size, leaf} = data.value
+          const leafHash = leaf['/']
+          treeSizes.set(nodeIndex, size)
+          ipfs.block.get(leafHash, (err, block) => {
+            if (err) return cb(err)
+            cb(null, block.data)
+          })
+        })
+      })
+      return
+    }
+
+    const roots = tree.fullRoots(length * 2)
+    for (let root of roots) {
+      console.log(`Jim root ${root}`, treeSizes.get(root))
+    }
+    cb(null, Buffer.from('test'))
   })
 }

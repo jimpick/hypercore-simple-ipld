@@ -13,6 +13,7 @@ const tree = require('flat-tree')
 const ipfs = new ipfsAPI('/ip4/127.0.0.1/tcp/5001')
 
 const nodeCids = new Map()
+const nodeSizes = new Map()
 
 const pendingTreeNodes = new Set()
 
@@ -168,17 +169,18 @@ function writeTree (nodeIndex, treeData, cb) {
     console.log(`Tree ${nodeIndex} CID:`,
       cid.toBaseEncodedString())
     nodeCids.set(nodeIndex, cid.toBaseEncodedString())
+    nodeSizes.set(nodeIndex, treeData.size)
     cb()
   })
 }
 
 function writeRoots (cb) {
-  console.log('Write roots', feed.length, tree.fullRoots(feed.length * 2))
+  const roots = tree.fullRoots(feed.length * 2)
+  console.log('Write roots', feed.length, '=>', roots.join(' '))
   const data = {
     length: feed.length,
-    roots: tree.fullRoots(feed.length * 2).map(
-      nodeIndex => ({'/': nodeCids.get(nodeIndex)})
-    )
+    roots: roots.map(nodeIndex => ({'/': nodeCids.get(nodeIndex)})),
+    sizes: roots.map(nodeIndex => nodeSizes.get(nodeIndex)) 
   }
   const options = {format: 'dag-cbor', hashAlg: 'sha3-512'}
   ipfs.dag.put(data, options, (err, cid) => {
