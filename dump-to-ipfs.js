@@ -185,7 +185,7 @@ function writeRoots (cb) {
     if (err) return cb(err)
     const cidStr = cid.toBaseEncodedString('base32')
     console.log(`Roots CID:`, cidStr)
-    fs.writeFileSync('./db/latest', `${cidStr}\n`)
+    fs.writeFileSync('./db/latest', cidStr)
     cb()
   })
 }

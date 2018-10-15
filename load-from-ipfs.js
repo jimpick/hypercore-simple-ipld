@@ -1,21 +1,19 @@
+const fs = require('fs')
 const hypercore = require('hypercore')
 const randomAccess = require('random-access-storage')
 const raf = require('random-access-file')
 const argv = require('minimist')(process.argv.slice(2))
 const uint64be = require('uint64be')
 const ipfsAPI = require('ipfs-api')
-const multihash = require('multihashes')
-const CID = require('cids')
+const thunky = require('thunky')
+const tree = require('flat-tree')
 
+console.log('** Loading IPFS')
 const ipfs = new ipfsAPI('/ip4/127.0.0.1/tcp/5001')
-
-const nodeCids = new Map()
-
-const pendingTreeNodes = new Set()
-
-console.log('** Creating hypercore')
+const latestCid = fs.readFileSync('./db/latest', 'utf8')
+console.log('** Loading hypercore')
 const dir = 'db'
-const feed = hypercore(loader(dir), {
+const feed = hypercore(loader(ipfs, latestCid, dir), {
   secretKey: null,
   storeSecretKey: false
 })
@@ -44,29 +42,19 @@ function bail (err) {
   process.exit(1)
 }
 
-function loader (dir) {
+function loader (ipfs, latestCide, dir) {
+  const getLength = thunky(function (cb) {
+    ipfs.dag.get(latestCid, 'length', (err, data) => {
+      if (err) bail(err)
+      const length = data.value
+      console.log('Latest length:', length)
+      cb(null, length)
+    })
+  })
   return function (name) {
     const diskFile = raf(name, {directory: dir})
     diskFile.label = 'diskFile'
     const ra = randomAccess({
-      /*
-      open: function (req) {
-        if (argv.v) {
-          console.log('_open:', name)
-        }
-        diskFile.open(function (err) {
-          req.callback(err)
-        })
-      },
-      openReadonly: function (req) {
-        if (argv.v) {
-          console.log('_openReadonly:', name)
-        }
-        diskFile.open(function (err) {
-          req.callback(err)
-        })
-      },
-      */
       read: function (req) {
         const {offset, size} = req
         diskFile.read(offset, size, function (err, buffer) {
@@ -88,6 +76,10 @@ function loader (dir) {
               }
               console.log('_read:', name, nodeIndex, offset, '<=',
                 'Hash:', hash.toString('hex'), 'Size:', size)
+              getIPLDPath(nodeIndex, getLength, (err, ipldPath) => {
+                if (err) bail(err)
+                console.log(`IPLD path for ${nodeIndex}:`, ipldPath)
+              })
             } else {
               console.log('_read:', name, offset, size, '=>', buffer)
             }
@@ -120,3 +112,27 @@ function loader (dir) {
   }
 }
 
+function getIPLDPath (nodeIndex, getLength, cb) {
+  getLength((err, length) => {
+    const roots = tree.fullRoots(length * 2)
+    const descendants = []
+
+    checkNodeIndex(nodeIndex)
+
+    function checkNodeIndex (nodeIndex) {
+      const rootIndex = roots.indexOf(nodeIndex)
+      if (rootIndex >= 0) {
+        let path = `roots/${rootIndex}`
+        let lastIndex = nodeIndex
+        for (let descendantIndex of descendants) {
+          path += '/' + (descendantIndex < lastIndex ? 'left' : 'right')
+          lastIndex = descendantIndex
+        }
+        cb(null, path)
+      } else {
+        descendants.unshift(nodeIndex)
+        checkNodeIndex(tree.parent(nodeIndex))
+      }
+    }
+  })
+}
