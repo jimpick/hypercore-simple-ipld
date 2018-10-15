@@ -79,6 +79,15 @@ function loader (ipfs, latestCide, dir) {
               getIPLDPath(nodeIndex, getLength, (err, ipldPath) => {
                 if (err) bail(err)
                 console.log(`IPLD path for ${nodeIndex}:`, ipldPath)
+                ipfs.dag.get(latestCid, ipldPath, (err, data) => {
+                  if (err) bail(err)
+                  let {size, hash, leaf} = data.value
+                  if (leaf) {
+                    hash = leaf['/'].slice(-32)
+                  }
+                  console.log('_read (IPLD):', name, nodeIndex, '<=',
+                    'Hash:', hash.toString('hex'), 'Size:', size)
+                })
               })
             } else {
               console.log('_read:', name, offset, size, '=>', buffer)
