@@ -93,13 +93,15 @@ function dumper (dir) {
                 }
                 writeTree(nodeIndex, treeData, err => {
                   if (err) bail(err)
+                  processPendingTreeNodesFromStart()
                 })
               } else {
                 // Parent
                 pendingTreeNodes.add([nodeIndex, size, hash])
+                processPendingTreeNodesFromStart()
               }
-              processPendingTreeNodesFromStart()
             }
+            req.callback()
           } else if (name === 'data') {
             console.log('_write:', name, offset, '<=',
               `"${data.toString()}"`)
@@ -114,14 +116,20 @@ function dumper (dir) {
               console.log(`Wrote leaf at offset ${offset} to IPFS:`, leaf)
               console.log('CID:', cid.toBaseEncodedString())
               console.log('Multihash:', cid.multihash.toString('hex'))
+              req.callback()
             })
           } else {
             console.log('_write:', name, offset, '<=', data)
+            diskFile.write(offset, data, function (err) {
+              req.callback(err)
+            })
           }
+        } else {
+          console.log('_write:', name, offset, '<=', data)
+          diskFile.write(offset, data, function (err) {
+            req.callback(err)
+          })
         }
-        diskFile.write(offset, data, function (err) {
-          req.callback(err)
-        })
       }
     })
     ra.label = 'proxy'

@@ -88,6 +88,14 @@ function loader (ipfs, latestCide, dir) {
               req.callback(err, buffer)
             })
           })
+        } else if (name === 'data') {
+          getDataForOffset(offset, getLength, treeSizes, (err, data) => {
+            if (err) bail(err)
+            data = data.slice(0, size)
+            console.log('_read (IPLD):', name, offset, size, '<=', 
+              `"${data.toString()}"`)
+            req.callback(err, data)
+          })
         } else {
           diskFile.read(offset, size, function (err, buffer) {
             if (
@@ -100,23 +108,8 @@ function loader (ipfs, latestCide, dir) {
               )
             ) {
               console.log('_read:', name, offset, size, '=>', buffer)
-              req.callback(err, buffer)
-              if (name === 'data') {
-                console.log('Jim _read2:', name, offset)
-                getDataForOffset(offset, getLength, treeSizes, (err, data) => {
-                  if (err) bail(err)
-                  console.log('Jim _read3:', name, offset, size, '=>', data)
-                })
-                /*
-                getIPLDPath(nodeIndex, getLength, (err, ipldPath) => {
-                  if (err) bail(err)
-                  req.callback(err, buffer)
-                })
-                */
-              }
-            } else {
-              req.callback(err, buffer)
             }
+            req.callback(err, buffer)
           })
         }
       },
@@ -200,15 +193,15 @@ function getDataForOffset (offset, getLength, treeSizes, cb) {
     function findNodeIndexForOffset (cb) {
       // Start at roots
       let rootStartOffset = 0
+      let rootEndOffset = 0
       for (let root of roots) {
         const [leftLeafNode, rightLeafNode] = tree.spans(root)
         const size = treeSizes.get(root)
-        const rootEndOffset = rootStartOffset + size
-        /*
+        rootStartOffset = rootEndOffset
+        rootEndOffset = rootStartOffset + size
         console.log('Jim findRoot', root, 'size', size,
           'startOffset', rootStartOffset, 'endOffset', rootEndOffset,
           'left', leftLeafNode, 'right', rightLeafNode)
-        */
         if (offset >= rootEndOffset) continue
         if (offset === rootStartOffset) {
           // First node in sub-tree
