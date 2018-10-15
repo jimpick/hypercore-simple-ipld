@@ -102,9 +102,10 @@ function loader (ipfs, latestCide, dir) {
               console.log('_read:', name, offset, size, '=>', buffer)
               req.callback(err, buffer)
               if (name === 'data') {
+                console.log('Jim _read2:', name, offset)
                 getDataForOffset(offset, getLength, treeSizes, (err, data) => {
                   if (err) bail(err)
-                  console.log('Jim _read2:', name, offset, size, '=>', data)
+                  console.log('Jim _read3:', name, offset, size, '=>', data)
                 })
                 /*
                 getIPLDPath(nodeIndex, getLength, (err, ipldPath) => {
@@ -174,8 +175,14 @@ function getDataForOffset (offset, getLength, treeSizes, cb) {
   console.log('Jim getDataForOffset', offset)
   getLength((err, length) => {
     if (err) return cb(err)
-    if (offset === 0) {
-      const nodeIndex = 0
+    const roots = tree.fullRoots(length * 2)
+    /*
+    for (let root of roots) {
+      console.log(`Jim root ${root}`, treeSizes.get(root))
+    }
+    */
+
+    findNodeIndexForOffset(nodeIndex => {
       getIPLDPath(nodeIndex, getLength, (err, ipldPath) => {
         ipfs.dag.get(latestCid, ipldPath, (err, data) => {
           if (err) return cb(err)
@@ -184,17 +191,40 @@ function getDataForOffset (offset, getLength, treeSizes, cb) {
           treeSizes.set(nodeIndex, size)
           ipfs.block.get(leafHash, (err, block) => {
             if (err) return cb(err)
-            cb(null, block.data)
+            cb(null, block.data.slice(9))
           })
         })
       })
-      return
-    }
+    })
 
-    const roots = tree.fullRoots(length * 2)
-    for (let root of roots) {
-      console.log(`Jim root ${root}`, treeSizes.get(root))
+    function findNodeIndexForOffset (cb) {
+      // Start at roots
+      let rootStartOffset = 0
+      for (let root of roots) {
+        const [leftLeafNode, rightLeafNode] = tree.spans(root)
+        const size = treeSizes.get(root)
+        const rootEndOffset = rootStartOffset + size
+        /*
+        console.log('Jim findRoot', root, 'size', size,
+          'startOffset', rootStartOffset, 'endOffset', rootEndOffset,
+          'left', leftLeafNode, 'right', rightLeafNode)
+        */
+        if (offset >= rootEndOffset) continue
+        if (offset === rootStartOffset) {
+          // First node in sub-tree
+          return cb(leftLeafNode)
+        } else if (
+          offset < rootEndOffset &&
+          rightLeafNode === leftLeafNode + 2
+        ) {
+          // Only 2 nodes in sub-tree, pick right node
+          return cb(rightLeafNode)
+        } else {
+          // Iterate, find sizes
+          bail(new Error('Not implemented'))
+          const children = tree.children(root)
+        }
+      }
     }
-    cb(null, Buffer.from('test'))
   })
 }
